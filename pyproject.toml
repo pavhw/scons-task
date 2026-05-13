@@ -1,0 +1,24 @@
+[build-system]
+requires = ["flit_core>=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "scons-task"
+dynamic = ["version", "description"]
+dependencies = ["SCons>=4.0.0"]
+authors = [
+    {name = "Anton Polstyankin", email = "mail@pavhw.org"}
+]
+readme = "README.md"
+classifiers = [
+    "Framework :: SCons",
+    "Programming Language :: Python :: 3"
+]
+license-files = ["LICENSE", "NOTICE"]
+
+[project.urls]
+Home = ""
+
+[tool.flit.module]
+name = "scons_task"
+directory = "src"

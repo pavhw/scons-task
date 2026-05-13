@@ -18,56 +18,78 @@
 #
 #******************************************************************************
 
+from SCons.Script import ARGUMENTS
+
 from scons_task import log
 from scons_task.dyn_var import DynVar
-
-from task_cmd import TaskCmd
-
+from scons_task.task_cmd import TaskCmd
+from scons_task.task_ref import TaskRef
 
 #==============================================================================
 class Task:
     #--------------------------------------------------------------------------
-    def __init__(self, *, env, name, **kwargs):
+    def __init__(self, env, name, args):
         self.env = env.Clone()
         self.name = name
+        self.args = args
 
         self.full_name = self.__get_full_name()
 
-        self.vars = {}
         self.cmds = []
         self.cmd_idx = 0
         self.target_nodes = []
 
-        self.__update_vars(kwargs.get('vars', {}))
+        self.silent = args.get('silent', False)
+        self.internal = (
+            env.get('TASK_INTERNAL', False)
+            or args.get('internal', False)
+        )
 
-        self.silent = kwargs.get('silent', False)
-        self.internal = kwargs.get('internal', False)
+        self.vars = self.__get_vars(args.get('vars', {}))
+        self.env.Replace(**self.vars)
 
-        cmds = kwargs.get('cmds')
+        cmds = args.get('cmds')
 
         if not cmds:
-            self.__fatal('No command is defined')
+            self.__fatal('No command is defined.')
+
+        if type(cmds) is not list and type(cmds) is not tuple:
+            self.__fatal("The value of 'cmds' key must be list or tuple.")
 
         for cmd_item in cmds:
             self.__process_cmd(cmd_item)
 
-        if name not in env.get('TASK_EXCLUDES', []):
-            env['TASKS'][name] = self
+        if name not in env.get('TASK_EXCLUDE', []):
+            env['TASKS'][self.full_name] = self
 
-        alias_prefix = f"_task_" if self.internal else ""
+        alias_prefix = "_task_" if self.internal else ""
         env.Alias(f"{alias_prefix}{self.full_name}", self.target_nodes)
     #--------------------------------------------------------------------------
 
     #--------------------------------------------------------------------------
-    def __update_vars(self, vars):
-        for key, value in vars.items():
-            if type(value) is DynVar:
-                self.vars[key] = value.execute(self)
-            else:
-                self.vars[key] = value
+    def __get_full_name(self):
+        namespace = self.env.get('TASK_PREFIX', '').strip()
+        return f"{namespace}:{self.name}" if namespace else self.name
+    #--------------------------------------------------------------------------
 
-        self.vars.update(ARGUMENTS)
-        self.env.Replace(**self.vars)
+    #--------------------------------------------------------------------------
+    def __get_vars(self, arg_vars):
+        vars = {}
+
+        for key, value in arg_vars.items():
+            if type(value) is dict:
+                shell_cmd = value.get('sh', '').strip()
+
+                if not shell_cmd:
+                    self.__fatal(f"No command for dynamic variable '{key}'.")
+
+                value = DynVar(shell_cmd, postproc=value.get('postproc'))
+                vars[key] = value.execute(self)
+            else:
+                vars[key] = value
+
+        vars.update(ARGUMENTS)
+        return vars
     #--------------------------------------------------------------------------
 
     #--------------------------------------------------------------------------
@@ -76,22 +98,17 @@ class Task:
             self.__add_cmd(cmd=cmd_item)
         elif type(cmd_item) is dict:
             if 'cmd' in cmd_item and 'task' in cmd_item:
-                # FIXME: message
-                self.__fatal('cmd or task is defined')
+                self.__fatal(
+                    "Either 'cmd' key or 'task' key must be defined, "
+                    "but not both."
+                )
 
             if 'cmd' in cmd_item:
                 self.__add_cmd(**cmd_item)
             elif 'task' in cmd_item:
                 self.__add_task(**cmd_item)
             else:
-                # FIXME: message
-                self.__fatal('cmd or task is defined')
-    #--------------------------------------------------------------------------
-
-    #--------------------------------------------------------------------------
-    def __get_full_name(self):
-        namespace = self.env.get('TASK_PREFIX', '').strip()
-        return f"{namespace}:{self.name}" if namespace else self.name
+                self.__fatal("Neither 'cmd' key nor 'task' key is defined.")
     #--------------------------------------------------------------------------
 
     #--------------------------------------------------------------------------
@@ -107,12 +124,12 @@ class Task:
         cmd_str = kwargs['cmd']
 
         cmd_args = {
-            'silent': kwargs.get('silent', False),
+            'silent': self.silent or kwargs.get('silent', False),
             'ignore_errors': kwargs.get('ignore_errors', False),
         }
 
         cmd = TaskCmd(
-            task=self, cmd_str=cmd_str,
+            env=self.env, task=self, cmd_str=cmd_str,
             target=self.__new_fake_target(), **cmd_args
         )
 
@@ -125,12 +142,12 @@ class Task:
         task_name = kwargs['task']
 
         task_args = {
-            'silent': kwargs.get('silent', False),
-            'vars': kwargs.get('vars', {}),
+            'silent': self.silent or kwargs.get('silent', False),
+            'vars': self.__get_vars(kwargs.get('vars', {})),
         }
 
         task_ref = TaskRef(
-            parent=self, task_name=task_name,
+            parent=self, name=task_name,
             target_prefix=self.__new_fake_target(), **task_args
         )
 
@@ -144,8 +161,8 @@ class Task:
     #--------------------------------------------------------------------------
 
     #--------------------------------------------------------------------------
-    def __warn(self, msg):
-        log.warn(msg, task_name=self.full_name)
+    def __warning(self, msg):
+        log.warning(msg, task_name=self.full_name)
     #--------------------------------------------------------------------------
 
     #--------------------------------------------------------------------------

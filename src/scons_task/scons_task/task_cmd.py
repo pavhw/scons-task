@@ -18,37 +18,40 @@
 #
 #******************************************************************************
 
-from SCons.Script import *
+from SCons.Script import Action
 
 from scons_task import log
 
 #==============================================================================
 class TaskCmd:
-    def __init__(self, *, task, cmd_str, target, **kwargs):
-        self.env = task.env.Clone()
+    def __init__(self, *, env, task, cmd_str, target, **kwargs):
+        self.env = env
         self.task = task
         self.cmd_str = cmd_str
         self.target = target
+        self.kwargs = kwargs
 
         self.silent = kwargs.get('silent', False)
         self.ignore_errors = kwargs.get('ignore_errors', False)
 
-        if self.ignore_errors:
-            cmd_str = f"-{cmd_str}"
+        log_fn = env.get('TASK_LOG_FN', log.default_log_fn)
+        log_str = log_fn(env, task, cmd_str)
 
-        log_fn = task.env.get('TASK_LOG_FN', log.default_log_fn)
-        log_color = task.env.get('TASK_LOG_COLOR', 'info')
-        log_str = log_fn(task, cmd_str, log_color)
+        def no_log_fn(*args, **kwargs):
+            return None
 
-        no_log_fn = lambda *args, **kwargs: None
-        cmd_log_fn = lambda target, source, env: f"{log_str}"
+        def cmd_log_fn(target, source, env):
+            return f"{log_str}"
 
         str_fn = no_log_fn if self.silent else cmd_log_fn
+
+        if self.ignore_errors:
+            cmd_str = f"-{cmd_str}"
 
         self.action = Action(cmd_str, strfunction=str_fn)
         self.target_nodes = self.env.Command(target, None, self.action)
 
-        self.AlwaysBuild(self.target_nodes)
+        self.env.AlwaysBuild(self.target_nodes)
 
 # class TaskCmd
 #==============================================================================

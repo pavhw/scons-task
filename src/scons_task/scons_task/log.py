@@ -18,19 +18,22 @@
 #
 #******************************************************************************
 
-from SCons.Script import *
-
+from SCons.Script import Exit
 
 COLORS = {
     'green': '\033[92m',
     'red': '\033[91m',
     'yellow': '\033[93m',
     'blue': '\033[94m',
-    'end': '\033[0m',
-    'bold': '\033[1m',
+
     'err': '\033[91m',
+    'error': '\033[91m',
     'warn': '\033[93m',
-    'info': '\033[92m'
+    'warning': '\033[93m',
+    'info': '\033[92m',
+
+    'bold': '\033[1m',
+    'end': '\033[0m',
 }
 
 #------------------------------------------------------------------------------
@@ -39,17 +42,18 @@ def log(color, msg, *, task_name=''):
     end = COLORS['end']
     tag = f"[{task_name}] " if task_name else ""
     prefix = f"scons-task: {tag}"
+
     print(f"{color}{prefix}{msg}{end}")
 #------------------------------------------------------------------------------
 
 #------------------------------------------------------------------------------
 def error(msg, *, task_name=''):
-    log('err', msg, task_name=task_name)
+    log('error', msg, task_name=task_name)
 #------------------------------------------------------------------------------
 
 #------------------------------------------------------------------------------
-def warn(msg, *, task_name=''):
-    log('warn', msg, task_name=task_name)
+def warning(msg, *, task_name=''):
+    log('warning', msg, task_name=task_name)
 #------------------------------------------------------------------------------
 
 #------------------------------------------------------------------------------
@@ -64,11 +68,11 @@ def fatal(msg, *, task_name='', exit_code=1):
 #------------------------------------------------------------------------------
 
 #------------------------------------------------------------------------------
-def default_log_fn(task, cmd_str, color):
+def default_log_fn(env, task, cmd_str, color='info'):
     color = COLORS.get(color, COLORS['info'])
     end = COLORS['end']
-    prefix = f"scons-task: [{task.full_name}]"
-    cmd_str = task.env.subst(cmd_str)
+    prefix = f"scons-task: [{task.full_name}] "
+    cmd_str = env.subst(cmd_str)
 
     return f"{color}{prefix}{cmd_str}{end}"
 #------------------------------------------------------------------------------

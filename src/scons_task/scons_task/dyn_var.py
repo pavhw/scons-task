@@ -19,19 +19,15 @@
 #******************************************************************************
 
 import subprocess
-from SCons.Script import *
 
 from scons_task import log
 
-
 #==============================================================================
-# Set dynamic variable
-#
 class DynVar:
     #--------------------------------------------------------------------------
-    def __init__(self, cmd_str, *, convert_fn=None):
+    def __init__(self, cmd_str, *, postproc=None):
         self.cmd_str = cmd_str
-        self.convert_fn = convert_fn
+        self.postproc = postproc
         self.task = None
     #--------------------------------------------------------------------------
 
@@ -40,8 +36,8 @@ class DynVar:
         self.task = task
         value = self.__run_cmd()
 
-        if self.convert_fn is not None:
-            value = self.convert_fn(value)
+        if self.postproc:
+            value = self.postproc(value)
 
         return value
     #--------------------------------------------------------------------------
@@ -55,8 +51,8 @@ class DynVar:
         if result.returncode != 0:
             log.fatal(
                 f"Command '{self.cmd_str}' failed, "
-                f"exit code: {result.returncode}",
-                task=self.task.full_name
+                f"exit code: {result.returncode}.",
+                task_name=self.task.full_name
             )
 
         return result.stdout.strip()
@@ -64,9 +60,3 @@ class DynVar:
 
 # class DynVar
 #==============================================================================
-
-
-#------------------------------------------------------------------------------
-def sh(cmd_str, *, convert_fn=None):
-    return DynVar(cmd_str, convert_fn=convert_fn)
-#------------------------------------------------------------------------------

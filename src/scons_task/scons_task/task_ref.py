@@ -18,32 +18,30 @@
 #
 #******************************************************************************
 
-from copy import copy
-
-from SCons.Script import *
-
 from scons_task import log
 from scons_task.task_cmd import TaskCmd
 
 #==============================================================================
 class TaskRef:
     #--------------------------------------------------------------------------
-    def __init__(self, *, parent, task_name, target_prefix, **kwargs):
+    def __init__(self, *, parent, name, target_prefix, **kwargs):
+        task = parent.env['TASKS'].get(name)
+
+        if not task:
+            log.fatal(f"The task '{name}' does not exist.")
+
         self.env = parent.env.Clone()
         self.parent = parent
-        self.task_name = task_name
+        self.name = name
         self.target_prefix = target_prefix
+        self.kwargs = kwargs
 
         self.cmds = []
         self.cmd_idx = 0
         self.target_nodes = []
 
-        task = self.env['TASKS'][task_name]
-
-        if 'vars' in kwargs:
-            vars = copy(kwargs.get('vars'))
-            vars.update(ARGUMENTS)
-            self.env.Replace(**vars)
+        self.vars = kwargs.get('vars', {})
+        self.env.Replace(**self.vars)
 
         for ref_cmd in task.cmds:
             cmd_args = {
@@ -51,7 +49,7 @@ class TaskRef:
             }
 
             cmd = TaskCmd(
-                task=parent, cmd_str=ref_cmd.cmd_str,
+                env=self.env, task=task, cmd_str=ref_cmd.cmd_str,
                 target=self.__new_fake_target(), **cmd_args
             )
 
@@ -61,7 +59,7 @@ class TaskRef:
 
     #--------------------------------------------------------------------------
     def __new_fake_target(self):
-        target = f"{self.target_prefix}{self.task_name}_{self.cmd_idx}_"
+        target = f"{self.target_prefix}{self.name}_{self.cmd_idx}_"
         self.cmd_idx += 1
 
         return target

@@ -20,42 +20,57 @@
 
 from pathlib import Path
 
-#------------------------------------------------------------------------------
-def include(env, namespace, sconscript, **kwargs):
-    f = Path(sconscript)
+from SCons.Script import SConscript
 
-    if not kwargs.get('optional') and (not f.exists() or not f.is_file()):
-        #TODO
-        log.fatal()
+from scons_task import log
+from scons_task.task import Task
+
+#------------------------------------------------------------------------------
+def include(env, namespace, args):
+    if type(args) is str:
+        args = {'file': args}
+
+    sconscript = Path(args['file'])
+
+    if not sconscript.exists() or not sconscript.is_file():
+        if args.get('optional'):
+            return
+        else:
+            log.fatal(f"The included script is not found: '{sconscript}'")
 
     this_ns = env.get('TASK_NAMESPACE', '').strip()
 
-    if kwargs.get('flatten'):
+    if args.get('flatten'):
         file_ns = this_ns
     else:
         file_ns = f"{this_ns}:{namespace}" if this_ns else namespace
 
-    excludes = [f"{this_ns}:{name}" for name in kwargs.get('exclude', [])]
+    exclude = args.get('exclude', [])
+
+    if type(exclude) is str:
+        exclude = [exclude]
 
     file_env = env.Clone(
         TASK_NAMESPACE=namespace,
         TASK_PREFIX=file_ns,
-        TASK_EXCLUDE=excludes,
-        #TASK_INTERNAL=kw.get('internal')
+        TASK_EXCLUDE=exclude,
+        TASK_INTERNAL=args.get('internal', False)
     )
 
     SConscript(sconscript, exports={'env': file_env})
-
-    new_tasks = {f"{namespace}:{k}": v for k, v in file_env['TASKS'].items()}
-    env['TASKS'].update(new_tasks)
+    env['TASKS'].update(file_env['TASKS'])
 #------------------------------------------------------------------------------
 
 #------------------------------------------------------------------------------
-def task(env, name, **kwargs):
-    task_fn = lambda env, **kwargs: Task(env, name, **kwargs).target_nodes
-    env.AddMethod(task_fn, name)
+def task(env, name, args):
+    if type(args) is str:
+        args = {'cmds': [args]}
+    elif type(args) is list or type(args) is tuple:
+        args = {'cmds': args}
+    elif type(args) is not dict:
+        log.fatal("Incorrect type of arguments.", task_name=name)
 
-    return task_fn(env, **kwargs)
+    return Task(env, name, args).target_nodes
 #------------------------------------------------------------------------------
 
 #------------------------------------------------------------------------------
@@ -65,4 +80,9 @@ def generate(env):
 
     env.AddMethod(include, 'Include')
     env.AddMethod(task, 'Task')
+#------------------------------------------------------------------------------
+
+#------------------------------------------------------------------------------
+def exists(env):
+    return True
 #------------------------------------------------------------------------------
