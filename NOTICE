@@ -1,4 +1,4 @@
-Build system based on SCons (scons-task)
+SCons-based build system (scons-task).
 Copyright 2026 Anton Polstyankin.
 
 This product includes code developed by
